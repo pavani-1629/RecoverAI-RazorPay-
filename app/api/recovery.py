@@ -2,10 +2,8 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from app.db.models import Transaction, RecoveryCase
-from app.services.recovery_executor import execute_recovery_action
-
 
 from app.db.database import get_db
 from app.db.models import (
@@ -14,14 +12,15 @@ from app.db.models import (
     RecoveryCase,
     Transaction,
 )
-
 from app.schemas.recovery import (
-    RecoveryPredictionResponse,
+    RecoveryActionHistoryResponse,
+    RecoveryActionResponse,
+    RecoveryCaseDetailResponse,
+    RecoveryCaseListResponse,
     RecoveryCaseResponse,
     RecoveryExecutionResponse,
+    RecoveryPredictionResponse,
 )
-
-from sqlalchemy.exc import IntegrityError
 from app.services.recovery_executor import execute_recovery_action
 from app.services.recovery_policy import decide_recovery_action
 from app.services.recovery_predictor import predict_recovery
@@ -78,10 +77,139 @@ def predict_transaction_recovery(
     }
 
 
+@router.get(
+    "/cases",
+    response_model=list[RecoveryCaseListResponse],
+)
+def list_recovery_cases(
+    db: Session = Depends(get_db),
+):
+    cases = db.scalars(
+        select(RecoveryCase).order_by(
+            RecoveryCase.id.desc()
+        )
+    ).all()
+
+    return [
+        {
+            "recovery_case_id": case.id,
+            "transaction_id": case.transaction_id,
+            "recovery_probability": float(
+                case.risk_score
+            ),
+            "reason": case.reason,
+            "status": case.status,
+            "estimated_revenue": float(
+                case.estimated_revenue
+            ),
+        }
+        for case in cases
+    ]
+
+@router.get(
+    "/cases/{case_id}/actions",
+    response_model=list[RecoveryActionHistoryResponse],
+)
+def list_recovery_actions(
+    case_id: int,
+    db: Session = Depends(get_db),
+):
+    recovery_case = db.scalars(
+        select(RecoveryCase).where(
+            RecoveryCase.id == case_id
+        )
+    ).first()
+
+    if recovery_case is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Recovery case not found",
+        )
+
+    actions = db.scalars(
+        select(RecoveryAction)
+        .where(
+            RecoveryAction.recovery_case_id == case_id
+        )
+        .order_by(RecoveryAction.id.desc())
+    ).all()
+
+    return [
+        {
+            "action_id": action.id,
+            "action_type": action.action_type,
+            "status": action.status,
+            "reason": action.reason,
+            "result": action.result,
+            "executed_at": (
+                action.executed_at.isoformat()
+                if action.executed_at
+                else None
+            ),
+        }
+        for action in actions
+    ]
+
+
+@router.get(
+    "/cases/{case_id}",
+    response_model=RecoveryCaseDetailResponse,
+)
+def get_recovery_case(
+    case_id: int,
+    db: Session = Depends(get_db),
+):
+    recovery_case = db.scalars(
+        select(RecoveryCase).where(
+            RecoveryCase.id == case_id
+        )
+    ).first()
+
+    if recovery_case is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Recovery case not found",
+        )
+
+    action = db.scalars(
+        select(RecoveryAction)
+        .where(
+            RecoveryAction.recovery_case_id
+            == recovery_case.id
+        )
+        .order_by(RecoveryAction.id.desc())
+    ).first()
+
+    if action is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Recovery action not found for this case",
+        )
+
+    return {
+        "recovery_case_id": recovery_case.id,
+        "transaction_id": recovery_case.transaction_id,
+        "recovery_probability": float(
+            recovery_case.risk_score
+        ),
+        "reason": recovery_case.reason,
+        "status": recovery_case.status,
+        "estimated_revenue": float(
+            recovery_case.estimated_revenue
+        ),
+        "action": {
+            "action_type": action.action_type,
+            "status": action.status,
+            "reason": action.reason,
+            "result": action.result,
+        },
+    }
+
 @router.post(
     "/cases/{transaction_id}",
     response_model=RecoveryCaseResponse,
 )
+
 def create_recovery_case(
     transaction_id: int,
     db: Session = Depends(get_db),
