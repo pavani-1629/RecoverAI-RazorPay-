@@ -14,7 +14,7 @@ __pycache__/
 venv/
 env/
 
-# Testing / coverage
+# Testing
 .pytest_cache/
 .coverage
 htmlcov/
@@ -27,12 +27,7 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# Local databases
-*.db
-*.sqlite
-*.sqlite3
-
-# ML / generated artifacts
+# ML generated files
 *.joblib
 *.pkl
 *.pickle

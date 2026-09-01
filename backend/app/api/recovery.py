@@ -24,7 +24,7 @@ from app.schemas.recovery import (
 from app.services.recovery_executor import execute_recovery_action
 from app.services.recovery_policy import decide_recovery_action
 from app.services.recovery_predictor import predict_recovery
-
+from app.agents.recovery_agent import run_recovery_agent
 
 
 router = APIRouter(
@@ -403,3 +403,48 @@ def execute_recovery_case(
         "status": execution.status,
         "result": execution.result,
     }
+
+@router.post("/agent/{transaction_id}")
+def run_recovery_agent_endpoint(
+    transaction_id: int,
+    db: Session = Depends(get_db),
+):
+    transaction = db.scalars(
+        select(Transaction).where(
+            Transaction.id == transaction_id
+        )
+    ).first()
+
+    if transaction is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Transaction not found",
+        )
+
+    if transaction.status != "failed":
+        raise HTTPException(
+            status_code=400,
+            detail="Recovery agent analysis is only available for failed transactions",
+        )
+
+    try:
+        result = run_recovery_agent(transaction_id)
+
+        return {
+            "transaction_id": transaction_id,
+            "analysis": result,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        err_msg = str(exc)
+        if "429" in err_msg or "quota" in err_msg.lower() or "RateLimit" in type(exc).__name__:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Gemini API rate limit or quota exceeded: {err_msg}",
+            )
+        raise HTTPException(
+            status_code=503,
+            detail=f"Recovery AI agent is temporarily unavailable: {err_msg}",
+        )
