@@ -15,6 +15,7 @@ interface SidebarProps {
   onTabChange: (tab: string) => void;
   onRefresh: () => void;
   isRefreshing?: boolean;
+  isLiveBackend?: boolean;
   caseCount?: number;
   failedTxnCount?: number;
 }
@@ -24,6 +25,7 @@ export const Sidebar = ({
   onTabChange,
   onRefresh,
   isRefreshing = false,
+  isLiveBackend = false,
   caseCount = 0,
   failedTxnCount = 0,
 }: SidebarProps) => {
@@ -133,9 +135,9 @@ export const Sidebar = ({
         <div className="p-3 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-[11px] font-mono font-semibold text-emerald-400">
-                Agent Live
+              <span className={`w-2 h-2 rounded-full ${isLiveBackend ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+              <span className={`text-[11px] font-mono font-semibold ${isLiveBackend ? 'text-emerald-400' : 'text-amber-400'}`}>
+                {isLiveBackend ? 'Supabase Live' : 'Demo Dataset'}
               </span>
             </div>
             <span className="text-[10px] font-mono text-slate-500">v1.0</span>

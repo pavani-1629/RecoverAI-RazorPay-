@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import rpLogo from '../assets/RPLogo.jpg';
+import { ArrowRight } from 'lucide-react';
 
 interface SplashScreenProps {
   onComplete: () => void;
@@ -11,31 +12,46 @@ export const SplashScreen = ({ onComplete }: SplashScreenProps) => {
   const [subTextVisible, setSubTextVisible] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
 
+  const handleDismiss = useCallback(() => {
+    setIsExiting(true);
+    setTimeout(() => {
+      onComplete();
+    }, 250);
+  }, [onComplete]);
+
   useEffect(() => {
-    // 0.2s: Logo fades in and scales from 0.85 -> 1.0
+    // 0.15s: Logo fades in and scales from 0.85 -> 1.0
     const tLogo = setTimeout(() => {
       setLogoVisible(true);
-    }, 200);
+    }, 150);
 
-    // 0.7s: "RazorPay" text appears with subtle upward movement
+    // 0.4s: "RazorPay" text appears
     const tBrand = setTimeout(() => {
       setBrandTextVisible(true);
-    }, 700);
+    }, 400);
 
-    // 1.0s: "RecoverAI" appears right after
+    // 0.65s: "RecoverAI" appears right after
     const tSub = setTimeout(() => {
       setSubTextVisible(true);
-    }, 1000);
+    }, 650);
 
-    // 2.5s: Begin exit animation (fade out, move up, scale up)
+    // 2.0s: Begin exit animation (fade out, move up, scale up)
     const tExit = setTimeout(() => {
       setIsExiting(true);
-    }, 2500);
+    }, 2000);
 
-    // 3.2s: Complete splash and reveal main application
+    // 2.5s: Complete splash and reveal main application
     const tComplete = setTimeout(() => {
       onComplete();
-    }, 3200);
+    }, 2500);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === ' ' || e.key === 'Enter') {
+        handleDismiss();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
 
     return () => {
       clearTimeout(tLogo);
@@ -43,17 +59,31 @@ export const SplashScreen = ({ onComplete }: SplashScreenProps) => {
       clearTimeout(tSub);
       clearTimeout(tExit);
       clearTimeout(tComplete);
+      window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [onComplete]);
+  }, [onComplete, handleDismiss]);
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#070a13] text-white select-none transition-all duration-700 ease-out ${
+      onClick={handleDismiss}
+      className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#070a13] text-white select-none transition-all duration-500 ease-out cursor-pointer ${
         isExiting
           ? 'opacity-0 scale-105 -translate-y-2.5 pointer-events-none'
           : 'opacity-100 scale-100 translate-y-0'
       }`}
     >
+      {/* Skip Button in Top Right */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          handleDismiss();
+        }}
+        className="absolute top-6 right-6 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/80 border border-slate-700/80 text-slate-300 hover:text-white hover:bg-slate-800 text-xs font-mono transition-all shadow-lg"
+      >
+        <span>Skip Intro</span>
+        <ArrowRight className="w-3.5 h-3.5" />
+      </button>
+
       {/* Soft Ambient Center Glow */}
       <div className="absolute w-80 h-80 bg-sky-500/10 rounded-full blur-[130px] pointer-events-none" />
 
@@ -61,7 +91,7 @@ export const SplashScreen = ({ onComplete }: SplashScreenProps) => {
       <div className="relative z-10 flex flex-col items-center text-center space-y-5 px-6">
         {/* [LOGO] */}
         <div
-          className={`transition-all duration-700 ease-out ${
+          className={`transition-all duration-500 ease-out ${
             logoVisible
               ? 'opacity-100 scale-100 translate-y-0'
               : 'opacity-0 scale-[0.85] translate-y-2'
@@ -78,7 +108,7 @@ export const SplashScreen = ({ onComplete }: SplashScreenProps) => {
 
         {/* RazorPay */}
         <div
-          className={`transition-all duration-600 ease-out ${
+          className={`transition-all duration-500 ease-out ${
             brandTextVisible
               ? 'opacity-100 translate-y-0'
               : 'opacity-0 translate-y-3'
@@ -91,7 +121,7 @@ export const SplashScreen = ({ onComplete }: SplashScreenProps) => {
 
         {/* RecoverAI */}
         <div
-          className={`transition-all duration-600 ease-out ${
+          className={`transition-all duration-500 ease-out ${
             subTextVisible
               ? 'opacity-100 translate-y-0'
               : 'opacity-0 translate-y-3'
@@ -102,10 +132,15 @@ export const SplashScreen = ({ onComplete }: SplashScreenProps) => {
             <span className="text-cyan-400">AI</span>
           </h1>
           <p className="text-[11px] text-slate-400 font-mono tracking-wider pt-2">
-            AI REVENUE RECOVERY
+            AI REVENUE RECOVERY CONTROL PLANE
           </p>
         </div>
+
+        <p className="text-[10px] text-slate-500 font-mono pt-4 animate-pulse">
+          Click anywhere to continue
+        </p>
       </div>
     </div>
   );
 };
+

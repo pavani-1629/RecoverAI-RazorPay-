@@ -27,6 +27,7 @@ export function App() {
     cases,
     loading,
     isRefreshing,
+    isLiveBackend,
     toasts,
     selectedTransaction,
     executingCaseId,
@@ -49,7 +50,7 @@ export function App() {
   };
 
   const handleInspectTransaction = (txnId: number) => {
-    const txn = transactions.find((t) => t.id === txnId);
+    const txn = Array.isArray(transactions) ? transactions.find((t) => t.id === txnId) : undefined;
     if (txn) {
       setSelectedTransaction(txn);
     } else {
@@ -57,8 +58,11 @@ export function App() {
     }
   };
 
-  const failedCount = transactions.filter((t) => t.status === 'failed').length;
-  const openCasesCount = cases.filter((c) => c.status === 'open').length;
+  const safeTransactions = Array.isArray(transactions) ? transactions : [];
+  const safeCases = Array.isArray(cases) ? cases : [];
+
+  const failedCount = safeTransactions.filter((t) => t.status === 'failed').length;
+  const openCasesCount = safeCases.filter((c) => c.status === 'open').length;
 
   return (
     <div className="min-h-screen bg-[#070a13] text-slate-100 flex selection:bg-sky-500/30 selection:text-white relative">
@@ -85,6 +89,7 @@ export function App() {
           onTabChange={setActiveTab}
           onRefresh={() => refreshAllData(true)}
           isRefreshing={isRefreshing}
+          isLiveBackend={isLiveBackend}
           caseCount={openCasesCount}
           failedTxnCount={failedCount}
         />

@@ -32,9 +32,10 @@ export const OverviewPage = ({
   onNavigateToAI,
   onSelectTransaction,
 }: OverviewPageProps) => {
-  // Find the single highest recovery opportunity from real backend transactions
+  // Find the single highest recovery opportunity from transactions
   const highestOpportunity = useMemo(() => {
-    const failedOnes = transactions.filter((t) => t.status === 'failed');
+    const safeList = Array.isArray(transactions) ? transactions : [];
+    const failedOnes = safeList.filter((t) => t.status === 'failed');
     if (failedOnes.length === 0) return null;
 
     // Sort by recovery probability (or amount if scored)
