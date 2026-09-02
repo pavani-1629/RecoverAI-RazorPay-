@@ -13,13 +13,17 @@ elif db_url.startswith("postgresql+psycopg2://"):
 elif db_url.startswith("postgresql://") and not db_url.startswith("postgresql+"):
     db_url = "postgresql+psycopg://" + db_url[len("postgresql://"):]
 
-connect_args = {"check_same_thread": False} if "sqlite" in db_url else {}
-
-engine = create_engine(
-    db_url,
-    connect_args=connect_args,
-    pool_pre_ping=True,
-)
+if "sqlite" in db_url:
+    engine = create_engine(
+        db_url,
+        connect_args={"check_same_thread": False, "timeout": 30},
+        pool_pre_ping=True,
+    )
+else:
+    engine = create_engine(
+        db_url,
+        pool_pre_ping=True,
+    )
 
 SessionLocal = sessionmaker(
     bind=engine,
