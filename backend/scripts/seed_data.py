@@ -1,11 +1,16 @@
+import os
+import sys
 import random
 from datetime import datetime, timedelta
 from decimal import Decimal
 
+# Ensure backend root is on sys.path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from sqlalchemy import delete
 
-from app.db.database import SessionLocal
-from app.db.models import Merchant, Customer, Transaction
+from app.db.database import SessionLocal, Base, engine
+from app.db.models import Merchant, Customer, Transaction, RecoveryCase, RecoveryAction, AuditEvent
 
 
 # ---------------------------------------------------------
@@ -103,12 +108,18 @@ def random_email(name: str, number: int) -> str:
 # ---------------------------------------------------------
 
 def seed_database():
+    # Ensure all tables exist
+    Base.metadata.create_all(bind=engine)
+
     db = SessionLocal()
 
     try:
         print("Clearing existing synthetic data...")
 
         # Delete in dependency order.
+        db.execute(delete(AuditEvent))
+        db.execute(delete(RecoveryAction))
+        db.execute(delete(RecoveryCase))
         db.execute(delete(Transaction))
         db.execute(delete(Customer))
         db.execute(delete(Merchant))
@@ -240,8 +251,8 @@ def seed_database():
         print(f"Transactions:       {len(transactions)}")
         print(f"Successful:         {success_count}")
         print(f"Failed:             {failure_count}")
-        print(f"Total GMV:          ₹{total_amount:,.2f}")
-        print(f"Failed GMV:         ₹{failed_amount:,.2f}")
+        print(f"Total GMV:          INR {total_amount:,.2f}")
+        print(f"Failed GMV:         INR {failed_amount:,.2f}")
         print("=" * 50)
 
     except Exception:
