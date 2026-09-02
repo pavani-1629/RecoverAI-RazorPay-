@@ -11,8 +11,12 @@ import type {
   AuditEventItem,
 } from '../types/recovery';
 
+const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
+const cleanBaseUrl = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
+const baseURL = cleanBaseUrl ? `${cleanBaseUrl}/api/recovery` : '/api/recovery';
+
 const apiClient = axios.create({
-  baseURL: '/api/recovery',
+  baseURL,
   headers: {
     'Content-Type': 'application/json',
   },

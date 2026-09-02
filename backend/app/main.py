@@ -26,4 +26,13 @@ def root():
     return {
         "message": "RecoverAI API is running",
         "version": "1.0.0",
+        "status": "healthy",
+    }
+
+
+@app.get("/health")
+def health_check():
+    return {
+        "status": "healthy",
+        "version": "1.0.0",
     }
