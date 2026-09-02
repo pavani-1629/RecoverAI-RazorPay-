@@ -6,6 +6,13 @@ from app.core.config import settings
 
 db_url = settings.database_url.strip() if settings.database_url else "sqlite:///./recoverai.db"
 
+if db_url.startswith("postgres://"):
+    db_url = "postgresql+psycopg://" + db_url[len("postgres://"):]
+elif db_url.startswith("postgresql+psycopg2://"):
+    db_url = "postgresql+psycopg://" + db_url[len("postgresql+psycopg2://"):]
+elif db_url.startswith("postgresql://") and not db_url.startswith("postgresql+"):
+    db_url = "postgresql+psycopg://" + db_url[len("postgresql://"):]
+
 connect_args = {"check_same_thread": False} if "sqlite" in db_url else {}
 
 engine = create_engine(

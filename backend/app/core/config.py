@@ -12,8 +12,15 @@ class Settings(BaseSettings):
     @field_validator("database_url", mode="before")
     @classmethod
     def sanitize_database_url(cls, v: str) -> str:
-        if isinstance(v, str) and v.startswith("postgres://"):
-            return v.replace("postgres://", "postgresql://", 1)
+        if isinstance(v, str):
+            v_trimmed = v.strip()
+            if v_trimmed.startswith("postgres://"):
+                return "postgresql+psycopg://" + v_trimmed[len("postgres://"):]
+            if v_trimmed.startswith("postgresql+psycopg2://"):
+                return "postgresql+psycopg://" + v_trimmed[len("postgresql+psycopg2://"):]
+            if v_trimmed.startswith("postgresql://"):
+                return "postgresql+psycopg://" + v_trimmed[len("postgresql://"):]
+            return v_trimmed
         return v
 
     model_config = SettingsConfigDict(
