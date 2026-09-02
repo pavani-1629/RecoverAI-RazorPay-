@@ -8,11 +8,14 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.db.models import (
     AuditEvent,
+    Customer,
     RecoveryAction,
     RecoveryCase,
     Transaction,
 )
 from app.schemas.recovery import (
+    AuditEventResponse,
+    MetricsSummaryResponse,
     RecoveryActionHistoryResponse,
     RecoveryActionResponse,
     RecoveryCaseDetailResponse,
@@ -20,6 +23,7 @@ from app.schemas.recovery import (
     RecoveryCaseResponse,
     RecoveryExecutionResponse,
     RecoveryPredictionResponse,
+    TransactionItemResponse,
 )
 from app.services.recovery_executor import execute_recovery_action
 from app.services.recovery_policy import decide_recovery_action
@@ -31,6 +35,143 @@ router = APIRouter(
     prefix="/api/recovery",
     tags=["Recovery"],
 )
+
+
+@router.get(
+    "/metrics",
+    response_model=MetricsSummaryResponse,
+)
+def get_recovery_metrics(
+    db: Session = Depends(get_db),
+):
+    transactions = db.scalars(select(Transaction)).all()
+    cases = db.scalars(select(RecoveryCase)).all()
+
+    failed_txns = [t for t in transactions if t.status == "failed"]
+    successful_txns = [t for t in transactions if t.status == "success"]
+
+    total_at_risk = sum(float(t.amount) for t in failed_txns)
+
+    executed_cases = [c for c in cases if c.status == "executed"]
+    total_recovered = sum(float(c.estimated_revenue) for c in executed_cases)
+    total_recoverable = sum(float(c.estimated_revenue) for c in cases)
+
+    failure_reasons: dict[str, int] = {}
+    for t in failed_txns:
+        reason = t.failure_reason or "unknown"
+        failure_reasons[reason] = failure_reasons.get(reason, 0) + 1
+
+    payment_methods: dict[str, int] = {}
+    for t in transactions:
+        pm = t.payment_method or "unknown"
+        payment_methods[pm] = payment_methods.get(pm, 0) + 1
+
+    recovery_rate = (
+        (total_recovered / total_at_risk * 100.0)
+        if total_at_risk > 0
+        else 0.0
+    )
+
+    return {
+        "total_revenue_at_risk": round(total_at_risk, 2),
+        "total_recoverable_revenue": round(total_recoverable, 2),
+        "total_recovered_revenue": round(total_recovered, 2),
+        "recovery_rate_percent": round(recovery_rate, 2),
+        "total_failed_transactions": len(failed_txns),
+        "total_successful_transactions": len(successful_txns),
+        "total_recovery_cases": len(cases),
+        "executed_recovery_cases": len(executed_cases),
+        "failure_reasons_breakdown": failure_reasons,
+        "payment_methods_breakdown": payment_methods,
+    }
+
+
+@router.get(
+    "/transactions",
+    response_model=list[TransactionItemResponse],
+)
+def list_transactions(
+    status: str | None = None,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+):
+    query = select(Transaction, Customer).join(
+        Customer,
+        Transaction.customer_id == Customer.id,
+        isouter=True,
+    )
+    if status:
+        query = query.where(Transaction.status == status)
+
+    query = query.order_by(Transaction.id.desc()).limit(limit)
+
+    results = db.execute(query).all()
+
+    cases = db.scalars(select(RecoveryCase)).all()
+    case_map = {c.transaction_id: c for c in cases}
+
+    response = []
+    for txn, cust in results:
+        case = case_map.get(txn.id)
+        response.append(
+            {
+                "id": txn.id,
+                "merchant_id": txn.merchant_id,
+                "customer_id": txn.customer_id,
+                "customer_name": cust.name if cust else None,
+                "customer_email": cust.email if cust else None,
+                "amount": float(txn.amount),
+                "currency": txn.currency,
+                "status": txn.status,
+                "failure_reason": txn.failure_reason,
+                "payment_method": txn.payment_method,
+                "retry_count": txn.retry_count,
+                "created_at": (
+                    txn.created_at.isoformat()
+                    if txn.created_at
+                    else ""
+                ),
+                "has_recovery_case": case is not None,
+                "recovery_case_id": case.id if case else None,
+                "recovery_case_status": case.status if case else None,
+                "recovery_probability": (
+                    float(case.risk_score) if case else None
+                ),
+            }
+        )
+
+    return response
+
+
+@router.get(
+    "/audit-events",
+    response_model=list[AuditEventResponse],
+)
+def list_audit_events(
+    limit: int = 50,
+    db: Session = Depends(get_db),
+):
+    events = db.scalars(
+        select(AuditEvent)
+        .order_by(AuditEvent.id.desc())
+        .limit(limit)
+    ).all()
+
+    return [
+        {
+            "id": ev.id,
+            "merchant_id": ev.merchant_id,
+            "recovery_case_id": ev.recovery_case_id,
+            "event_type": ev.event_type,
+            "actor": ev.actor,
+            "description": ev.description,
+            "created_at": (
+                ev.created_at.isoformat() if ev.created_at else ""
+            ),
+        }
+        for ev in events
+    ]
+
 
 
 @router.get(
@@ -442,7 +583,7 @@ def run_recovery_agent_endpoint(
         if "429" in err_msg or "quota" in err_msg.lower() or "RateLimit" in type(exc).__name__:
             raise HTTPException(
                 status_code=429,
-                detail=f"Gemini API rate limit or quota exceeded: {err_msg}",
+                detail=f"LLM service rate limit or quota exceeded: {err_msg}",
             )
         raise HTTPException(
             status_code=503,

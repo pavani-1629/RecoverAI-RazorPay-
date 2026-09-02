@@ -75,3 +75,45 @@ class RecoveryActionHistoryResponse(BaseModel):
     reason: str
     result: str | None
     executed_at: str | None
+
+
+class TransactionItemResponse(BaseModel):
+    id: int
+    merchant_id: int
+    customer_id: int
+    customer_name: str | None = None
+    customer_email: str | None = None
+    amount: float
+    currency: str
+    status: str
+    failure_reason: str | None
+    payment_method: str
+    retry_count: int
+    created_at: str
+    has_recovery_case: bool = False
+    recovery_case_id: int | None = None
+    recovery_case_status: str | None = None
+    recovery_probability: float | None = None
+
+
+class MetricsSummaryResponse(BaseModel):
+    total_revenue_at_risk: float
+    total_recoverable_revenue: float
+    total_recovered_revenue: float
+    recovery_rate_percent: float
+    total_failed_transactions: int
+    total_successful_transactions: int
+    total_recovery_cases: int
+    executed_recovery_cases: int
+    failure_reasons_breakdown: dict[str, int]
+    payment_methods_breakdown: dict[str, int]
+
+
+class AuditEventResponse(BaseModel):
+    id: int
+    merchant_id: int
+    recovery_case_id: int | None
+    event_type: str
+    actor: str
+    description: str
+    created_at: str
